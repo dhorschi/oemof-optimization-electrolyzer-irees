@@ -1,6 +1,5 @@
 from oemof import solph
 import pandas as pd
-import numpy as np
 import pyomo.environ as po
 import datetime as dt
 
@@ -25,11 +24,11 @@ b_pos, b_neg = abruf_affr()
 
 # Definition noch relevanter Parameter
 power_ely = P_in_max
-c_h2 = 0
-c_heat = 0 # Preis für den Verkauf von Wärme (muss negativ angegeben werden
-c_oxygen = 0
+c_h2_virtual = 0 # virtueller Wasserstoffpreis zur Optimierung
+c_heat = 0 # Preis für den Verkauf von Wärme (muss negativ angegeben werden um eine Einnahme zu sein)
+c_oxygen = 0 # Preis für den Verkauf von Sauerstoff (muss negativ angegeben werden um eine Einnahme zu sein)
 
-num_tsteps = 5 # Anzahl an Zeitschritten, für die letztendlich Ergebnisse vorliegen werden
+num_tsteps = 5 # Anzahl an Zeitschritten, für die letztendlich Ergebnisse vorliegen werden (für ganzes Jahr 8760 wählen)
 
 # Anzahl an Zeitschritten, die bei der Optimierung betrachtet werden sollen
 # die Produktion wird für die nächsten 100 Zeitschritte optimiert
@@ -71,6 +70,8 @@ menge_wasser=[]
 
 for n in range(num_tsteps):
 
+    # Defintion von Start- und Endindex
+    # Der Index bestimmt die Anzahl an Stunden, über die der Optimierer Daten hat (kann über Parameter window_size geändert werden)
     start_idx = n
     end_idx = min(n + window_size, num_tsteps)
 
@@ -112,6 +113,7 @@ for n in range(num_tsteps):
         }
     )
 
+    # Quelle für Wasserbezug
     source_h2o = solph.components.Source(
         "water import",
         outputs={
@@ -121,6 +123,7 @@ for n in range(num_tsteps):
         }
     )
 
+    #Hilfsquelle für Sauerstoff
     source_o2 = solph.components.Source(
         "oxygen import",
         outputs={
@@ -129,6 +132,7 @@ for n in range(num_tsteps):
         }
     )
 
+    # virtuelle Stromquelle
     source_el_neg_affr_virt = solph.components.Source(
         "electricity neg affr virt",
         outputs={
@@ -141,6 +145,7 @@ for n in range(num_tsteps):
         }
     )
 
+    # virtuelle Stromquelle
     source_el_pos_affr_virt = solph.components.Source(
         "electricity pos affr virt",
         outputs={
@@ -154,7 +159,8 @@ for n in range(num_tsteps):
         }
     )
 
-    # Sink for fix haydrogen demand via contract
+    # Sink for fix hydrogen demand via contract
+    # Hier wird die Wasserstoffnachfrage dem Modell hinzugegeben
     sink_h2_demand = solph.components.Sink(
         "hydrogen demand",
         inputs={
@@ -166,7 +172,7 @@ for n in range(num_tsteps):
         }
     )
 
-    # sink for byproduct heat
+    # sink for heat
     sink_heat = solph.components.Sink(
         "heat export",
         inputs={
@@ -176,7 +182,7 @@ for n in range(num_tsteps):
         }
     )
 
-    # sink for byproduct oxygen
+    # sink for oxygen
     sink_o2 = solph.components.Sink(
         "oxygen export",
         inputs={
@@ -186,6 +192,7 @@ for n in range(num_tsteps):
         }
     )
 
+    # Hilfssenke für Wasserverbrauch
     sink_h2o = solph.components.Sink(
         "water export",
         inputs={
@@ -194,6 +201,8 @@ for n in range(num_tsteps):
         }
     )
 
+    # virtuelle Wasserstoffsenke
+    # durch den Leistungspreis wird entschieden, ob es sich lohnt Regelenergie anzubieten
     sink_h2_neg_affr_virt = solph.components.Sink(
         "neg affr h2 sink virt",
         inputs={
@@ -203,6 +212,7 @@ for n in range(num_tsteps):
         }
     )
 
+    # virtuelle Wasserstoffsenke
     sink_h2_pos_affr_virt = solph.components.Sink(
         "pos affr h2 sink virt",
         inputs={
@@ -214,13 +224,14 @@ for n in range(num_tsteps):
 
     #### Electrolyzer hydrogen market ####
     # firt part electrolyzer to cover hydrogen demand/production
+    # electrolyzer1_1 deckt den Lastbereich von P_in_max bis P_in_min ab (Default:2-20MWh(el))
     electrolyzer1_1 = solph.components.OffsetConverter(
         label='electrolyzer market 1',
         inputs={
             b_el: solph.Flow(
-                nominal_value=P_in_max,
+                nominal_value=P_in_max, # maximale Last vom Teillastbereich
                 nonconvex=solph.NonConvex(),
-                min=P_in_min / P_in_max,
+                min=P_in_min / P_in_max, # minimale Last vom Teillastbereich
             )
         },
         outputs={
@@ -228,7 +239,7 @@ for n in range(num_tsteps):
             b_h2: solph.Flow(),
         },
         conversion_factors={
-            b_heat: slope_heat,
+            b_heat: slope_heat, # durch slope und offset wird der Wirkungsgradverlauf definiert
             b_h2: slope_h2
         },
         normed_offsets={
@@ -238,6 +249,7 @@ for n in range(num_tsteps):
     )
 
     # firt part electrolyzer to cover hydrogen demand/production
+    # electrolyzer1_2 deckt den Lastbereich von P_in_max_2 bis P_in_min_2 ab (Default:0-2MWh(el))
     electrolyzer1_2 = solph.components.OffsetConverter(
         label='electrolyzer market 2',
         inputs={
@@ -269,14 +281,14 @@ for n in range(num_tsteps):
                 nominal_value=P_in_max,
                 nonconvex=solph.NonConvex(),
                 min=P_in_min / P_in_max,
-                # max=1
+
             )
         },
         outputs={
             b_h2_neg_affr_virt: solph.Flow()
         },
         conversion_factors={
-            b_h2_neg_affr_virt: slope_h2,
+            b_h2_neg_affr_virt: slope_h2, #die Produktion von Wärme muss beim Vorhalten von Regelenergie nicht betrachtet werden
         },
         normed_offsets={
             b_h2_neg_affr_virt: offset_h2,
@@ -726,7 +738,7 @@ for n in range(num_tsteps):
         }
     )
 
-    # Sink for fix haydrogen demand via contract
+    # Sink for fix hydrogen demand via contract
     sink_h2_demand = solph.components.Sink(
         "hydrogen demand",
         inputs={
@@ -890,24 +902,25 @@ for n in range(num_tsteps):
 
     myblock3.oxygen_flow = po.Constraint(om3.TIMESTEPS, rule=oxygen_flow)
 
-
+    # hier wird geprüft, ob Regelenergie abgerufen wird und definiert wie sich die Produktion durch ein Abruf von
+    # positiver und negativer Regelenergie auf die Produktion von electrolyzer1_1 auswirkt
     def flow_ely1_1(m, t):
-        if b_neg[n] > 0:
-            if electricity_flow_ely1_1 + electricity_flow_ely1_2 + electricity_flow_ely2_1 + electricity_flow_ely2_2 > 2:
-                expr = om3.flow[
-                           b_el, electrolyzer1_1, t] == electricity_flow_ely1_1 + electricity_flow_ely1_2 + electricity_flow_ely2_1 + electricity_flow_ely2_2
+        if b_neg[n] > 0:#hier wird geprüft ob Regelenergie abgerufen wird (wenn =1 dann wird abgerufen)
+            if electricity_flow_ely1_1 + electricity_flow_ely1_2 + electricity_flow_ely2_1 + electricity_flow_ely2_2 > P_in_min:
+                expr = (om3.flow[b_el, electrolyzer1_1, t] ==
+                        electricity_flow_ely1_1 + electricity_flow_ely1_2 + electricity_flow_ely2_1 + electricity_flow_ely2_2)
                 return expr
             else:
                 expr = om3.flow[b_el, electrolyzer1_1, t] == electricity_flow_ely1_1
                 return expr
-        elif b_pos[n] > 0:
-            if electricity_flow_ely1_1 > 0:
-                if electricity_flow_ely1_1 - electricity_flow_ely3_1 - electricity_flow_ely3_2 <= 2:
+        elif b_pos[n] > 0: #hier wird geprüft ob Regelenergie abgerufen wird (wenn =1 dann wird abgerufen)
+            if electricity_flow_ely1_1 > 0: #hier wird geprüft ob Teilelektrolyseur 1 in der Stunde proudziert (>0 bedeutet gleichzeitig > P_in_min)
+                if electricity_flow_ely1_1 - electricity_flow_ely3_1 - electricity_flow_ely3_2 <= P_in_min:
                     expr = om3.flow[b_el, electrolyzer1_1, t] == 0
                     return expr
                 else:
-                    expr = om3.flow[
-                               b_el, electrolyzer1_1, t] == electricity_flow_ely1_1 - electricity_flow_ely3_1 - electricity_flow_ely3_2
+                    expr = (om3.flow[b_el, electrolyzer1_1, t] ==
+                            electricity_flow_ely1_1 - electricity_flow_ely3_1 - electricity_flow_ely3_2)
                     return expr
             else:
                 expr = om3.flow[b_el, electrolyzer1_1, t] == electricity_flow_ely1_1
@@ -920,20 +933,22 @@ for n in range(num_tsteps):
     myblock3.flow_ely1_1 = po.Constraint(om3.TIMESTEPS, rule=flow_ely1_1)
 
 
+    # hier wird geprüft, ob Regelenergie abgerufen wird und definiert wie sich die Produktion durch ein Abruf von
+    # positiver und negativer Regelenergie auf die Produktion von electrolyzer1_2 auswirkt
     def flow_ely1_2(m, t):
-        if b_neg[n] > 0:
-            if electricity_flow_ely1_1 + electricity_flow_ely1_2 + electricity_flow_ely2_1 + electricity_flow_ely2_2 <= 2:
-                expr = om3.flow[
-                           b_el, electrolyzer1_2, t] == electricity_flow_ely1_1 + electricity_flow_ely1_2 + electricity_flow_ely2_1 + electricity_flow_ely2_2
+        if b_neg[n] > 0: #hier wird geprüft ob Regelenergie abgerufen wird (wenn =1 dann wird abgerufen)
+            if electricity_flow_ely1_1 + electricity_flow_ely1_2 + electricity_flow_ely2_1 + electricity_flow_ely2_2 <= P_in_min:
+                expr = (om3.flow[b_el, electrolyzer1_2, t] ==
+                        electricity_flow_ely1_1 + electricity_flow_ely1_2 + electricity_flow_ely2_1 + electricity_flow_ely2_2)
                 return expr
             else:
                 expr = om3.flow[b_el, electrolyzer1_2, t] == 0
                 return expr
-        elif b_pos[n] > 0:
+        elif b_pos[n] > 0: #hier wird geprüft ob Regelenergie abgerufen wird (wenn =1 dann wird abgerufen)
             if electricity_flow_ely1_1 > 0:
-                if electricity_flow_ely1_1 - electricity_flow_ely3_1 - electricity_flow_ely3_2 <= 2:
-                    expr = om3.flow[
-                               b_el, electrolyzer1_2, t] == electricity_flow_ely1_1 - electricity_flow_ely3_1 - electricity_flow_ely3_2
+                if electricity_flow_ely1_1 - electricity_flow_ely3_1 - electricity_flow_ely3_2 <= P_in_min:
+                    expr = (om3.flow[b_el, electrolyzer1_2, t] ==
+                            electricity_flow_ely1_1 - electricity_flow_ely3_1 - electricity_flow_ely3_2)
                     return expr
                 else:
                     expr = om3.flow[b_el, electrolyzer1_2, t] == electricity_flow_ely1_2
@@ -954,7 +969,8 @@ for n in range(num_tsteps):
 
     results3 = solph.views.convert_keys_to_strings(om3.results(), keep_none_type=True)
 
-    # Füllstände der Speicher, die in erste Optimierung wieder übergeben werden
+    # Durch den Abruf von Regelenergie ändern sich ggf. die Speicherfüllstände, daher werden die neuen
+    # Füllstände der Speicher, neu gespeichert und in die erste Optimierung wieder übergeben
     el_storage_initial_storage_level = results3[("electricity storage", None)]["sequences"]["storage_content"].iloc[
                                            1] / el_storage_capacity
     hydrogen_storage_initial_storage_level = results3[("hydrogen storage", None)]["sequences"]["storage_content"].iloc[
@@ -962,7 +978,7 @@ for n in range(num_tsteps):
 
 
 
-    # Sammeln aller Informationen für DataFrame
+    # Sammeln aller Informationen für DataFrame und Auswertung
     time.append(start_time.strftime("%d-%m-%Y %H:%M:%S"))
     # start_time += dt.timedelta(hours=1)
 
