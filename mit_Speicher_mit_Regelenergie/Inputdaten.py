@@ -31,7 +31,7 @@ def get_storage_data(el_storage_capacity = 5, el_storage_input_flow = 5, el_stor
 
 # Laden der Strompreisdaten vom Großhandel
 # Daten müssen, wie in Default-Datei aufbereitet werden
-def get_el_price(file="/Users/lucajahner/Documents/GitHub/oemof-optimization_electrolyzer-irees/Daten/DayAhead_Boersenstrompreis_stuendlich_2019_energy_charts.xlsx",
+def get_el_price(file="/Daten/DayAhead_Boersenstrompreis_stuendlich_2019_energy_charts.xlsx",
                  konzessionsabgabe = 1.1,
                  umlage_strom_nev = 4,
                  umsatzsteuer = 0.19):
@@ -50,7 +50,7 @@ def get_ppa_price(ppa=50, konzessionsabgabe = 1.1, umlage_strom_nev = 4, umsatzs
 
 #Laden der Leistungspreise von positiver und negativer Regelenergie
 #Daten müssen, wie in Default-Datei aufbereitet werden
-def get_lp(fn = "/Users/lucajahner/Documents/GitHub/oemof-optimization_electrolyzer-irees/Daten/Regelenergie_affr_pos_neg_stuendliche_Daten_2019_smard.xlsx",
+def get_lp(fn = "/Daten/Regelenergie_affr_pos_neg_stuendliche_Daten_2019_smard.xlsx",
            column_pos = "Leistungspreis (+) [€/MW]" ,
            column_neg = "Leistungspreis (-) [€/MW]"
            ):
@@ -62,7 +62,7 @@ def get_lp(fn = "/Users/lucajahner/Documents/GitHub/oemof-optimization_electroly
 
 #Laden der Information, ob Regelenergie abgerufen wurde oder nicht
 #Daten müssen, wie in Default-Datei aufbereitet werden
-def abruf_affr(fn = "/Users/lucajahner/Documents/GitHub/oemof-optimization_electrolyzer-irees/Daten/Aktivierte_aFRR_2019_qualitaetsgesichert_stuendliche_Daten.xlsx",
+def abruf_affr(fn = "/Daten/Aktivierte_aFRR_2019_qualitaetsgesichert_stuendliche_Daten.xlsx",
                column_pos = "b_pos",
                column_neg = "b_neg",
                num_tsteps=8760):

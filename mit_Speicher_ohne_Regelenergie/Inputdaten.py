@@ -22,7 +22,7 @@ def get_storage_data(el_storage_capacity = 5, el_storage_input_flow = 5, el_stor
             hydrogen_storage_variable_costs, hydrogen_storage_loss_rate, hydrogen_storage_initial_storage_level)
 
 
-def get_el_price(file="/Users/lucajahner/Documents/GitHub/oemof-optimization_electrolyzer-irees/Daten/DayAhead_Boersenstrompreis_stuendlich_2019_energy_charts.xlsx",
+def get_el_price(file="/Daten/DayAhead_Boersenstrompreis_stuendlich_2019_energy_charts.xlsx",
                  konzessionsabgabe = 1.1,
                  umlage_strom_nev = 4,
                  umsatzsteuer = 0.19):

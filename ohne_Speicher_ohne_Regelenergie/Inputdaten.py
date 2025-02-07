@@ -8,7 +8,7 @@ def get_annualized_cost(power_ely= 20, investment_cost_ely = 1500, number_years 
     return annualized_cost
 
 
-def get_el_price(file="/Users/lucajahner/Documents/GitHub/oemof-optimization_electrolyzer-irees/Daten/DayAhead_Boersenstrompreis_stuendlich_2019_energy_charts.xlsx",
+def get_el_price(file="/Daten/DayAhead_Boersenstrompreis_stuendlich_2019_energy_charts.xlsx",
                  column_name = 'Preis (EUR/MWh)',
                  konzessionsabgabe = 1.1,
                  umlage_strom_nev = 4,
